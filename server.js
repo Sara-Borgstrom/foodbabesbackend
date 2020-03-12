@@ -2,12 +2,44 @@ import express from 'express'
 import bodyParser, { text } from 'body-parser'
 import cors from 'cors'
 import mongoose from 'mongoose'
-
-
+import dotenv from 'dotenv'
+import cloudinary from 'cloudinary'
+import multer from 'multer'
+import cloudinaryStorage from 'multer-storage-cloudinary'
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://localhost/blog"
 mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true })
 mongoose.Promise = Promise
+
+const Food = mongoose.model('Food', {
+  restaurantId: Number,
+  title: String,
+  url: String,
+  imageUrl: String,
+  imageId: String,
+  description: String,
+  type: String
+})
+
+dotenv.config()
+
+cloudinary.config({
+  cloud_name: 'saraborg',
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+})
+
+const storage = cloudinaryStorage({
+  cloudinary,
+  folder: 'food',
+  allowedFormats: ['jpg', 'jpeg', 'png'],
+  transformation: [{ width: 500, height: 500, crop: "limit" }]
+})
+
+const parser = multer({ storage })
+
+
+
 
 const Comment = mongoose.model('Comment', {
   message: {
@@ -46,6 +78,28 @@ app.get('/:commentId', async(req, res) => {
       res.json(result)
     })
 })
+
+app.post('/foods', parser.single('image'), async(req, res) => {
+  const { restaurantId, title, url, description, type } = req.body
+  const imageUrl = req.file.secure_url
+  const imageId = req.file.public_id
+
+  try {
+    const food = await new Food({
+      restaurantId,
+      title,
+      url,
+      imageUrl,
+      imageId,
+      description,
+      type
+    }).save()
+    res.json(food)
+  } catch (err) {
+    res.status(400).json({ message: 'Could not create post', errors: err.errors })
+  }
+})
+
 
 app.post('/', async(req, res) => {
   const comment = new Comment({
