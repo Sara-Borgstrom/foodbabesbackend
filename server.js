@@ -2,6 +2,8 @@ import express from 'express'
 import bodyParser, { text } from 'body-parser'
 import cors from 'cors'
 import mongoose from 'mongoose'
+import bcrypt from 'bcrypt-nodejs'
+import crypto from 'crypto'
 import dotenv from 'dotenv'
 import cloudinary from 'cloudinary'
 import multer from 'multer'
@@ -12,9 +14,8 @@ mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true })
 mongoose.Promise = Promise
 
 const Food = mongoose.model('Food', {
-  restaurantId: Number,
   title: String,
-  url: String,
+  link: String,
   imageUrl: String,
   imageId: String,
   description: String,
@@ -40,24 +41,6 @@ const parser = multer({ storage })
 
 
 
-
-const Comment = mongoose.model('Comment', {
-  message: {
-    type: String,
-    required: true,
-    minlength: 5,
-    maxlength: 140
-  },
-  likes: {
-    type: Number,
-    default: 0
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-})
-
 const port = process.env.PORT || 8080
 const app = express()
 
@@ -65,30 +48,16 @@ const app = express()
 app.use(cors())
 app.use(bodyParser.json())
 
-// Start defining your routes here
-app.get('/', async(req, res) => {
-  const comments = await Comment.find().sort({ createdAt: 'desc' }).limit(20).exec();
-  res.json(comments);
-})
-
-app.get('/:commentId', async(req, res) => {
-  const commentId = req.params.commentId
-  Comment.findOne({ '_id': commentId })
-    .then((result) => {
-      res.json(result)
-    })
-})
 
 app.post('/foods', parser.single('image'), async(req, res) => {
-  const { restaurantId, title, url, description, type } = req.body
+  const { title, link, description, type } = req.body
   const imageUrl = req.file.secure_url
   const imageId = req.file.public_id
 
   try {
     const food = await new Food({
-      restaurantId,
       title,
-      url,
+      link,
       imageUrl,
       imageId,
       description,
@@ -100,6 +69,14 @@ app.post('/foods', parser.single('image'), async(req, res) => {
   }
 })
 
+app.get('/foods', async(req, res) => {
+  try {
+    const foods = await Food.find()
+    res.status(200).json(foods)
+  } catch (err) {
+    res.status(400).json({ message: 'Could not fins food', errors: err.errors })
+  }
+})
 
 app.post('/', async(req, res) => {
   const comment = new Comment({
@@ -114,16 +91,63 @@ app.post('/', async(req, res) => {
   }
 })
 
-app.post('/:id/like', async(req, res) => {
+
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`)
+})
+
+// Sign in
+
+const User = mongoose.model('User', {
+  name: {
+    type: String,
+    required: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  accessToken: {
+    type: String,
+    default: () => crypto.randomBytes(128).toString('hex')
+  }
+})
+app.post('/users', async(req, res) => {
   try {
-    const comment = await Comment.updateOne({ _id: req.params.id }, { $inc: { likes: 1 } }, { new: true })
-    res.status(200), json(comment)
+    const { name, password } = req.body
+    const user = new User({ name, password: bcrypt.hashSync(password) })
+    user.save()
+    res.status(201).json({ id: user._id, accessToken: user.accessToken })
   } catch (err) {
-    res.status(400).json({ message: 'Could not add like', errors: err.errors })
+    res.status(400).json({ message: "Could not create user", errors: err.errors })
   }
 })
 
-// Start the server
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`)
+const authenticateUser = async(req, res, next) => {
+  try {
+    const user = await User.findOne({ accessToken: req.header('Authorization') })
+    if (user) {
+      req.user = user
+      next()
+    } else {
+      res.status(401).json({ loggedOut: true, message: 'Please try logging in again!' })
+    }
+  } catch (err) {
+    res.status(403).json({ message: 'Access token is missing or wrong', error: err.errors })
+  }
+}
+
+app.post('/sessions', async(req, res) => {
+  const user = await User.findOne({ name: req.body.name })
+  if (user && bcrypt.compareSync(req.body.password, user.password)) {
+    res.json({ userId: user._id, accessToken: user.accessToken })
+  } else {
+    res.json({ notFound: true })
+  }
+})
+
+
+app.get('/users/current', authenticateUser)
+app.get('/users/current', (req, res) => {
+  res.json(req.user)
 })
