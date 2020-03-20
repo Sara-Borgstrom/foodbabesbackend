@@ -1,5 +1,5 @@
 import express from 'express'
-import bodyParser, { text } from 'body-parser'
+import bodyParser from 'body-parser'
 import cors from 'cors'
 import mongoose from 'mongoose'
 import bcrypt from 'bcrypt-nodejs'
@@ -13,6 +13,7 @@ const mongoUrl = process.env.MONGO_URL || "mongodb://localhost/blog"
 mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true })
 mongoose.Promise = Promise
 
+// Upload model
 const Food = mongoose.model('Food', {
   title: String,
   link: String,
@@ -20,6 +21,23 @@ const Food = mongoose.model('Food', {
   imageId: String,
   description: String,
   type: String
+})
+
+//Inlog model
+const User = mongoose.model('User', {
+  name: {
+    type: String,
+    required: true,
+    maxlength: 10
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  accessToken: {
+    type: String,
+    default: () => crypto.randomBytes(128).toString('hex')
+  }
 })
 
 dotenv.config()
@@ -38,7 +56,6 @@ const storage = cloudinaryStorage({
 })
 
 const parser = multer({ storage })
-
 
 
 const port = process.env.PORT || 8080
@@ -78,40 +95,10 @@ app.get('/foods', async(req, res) => {
   }
 })
 
-app.post('/', async(req, res) => {
-  const comment = new Comment({
-    message: req.body.message,
-    likes: 0
-  })
-  try {
-    const saved = await comment.save()
-    res.status(201).json(saved)
-  } catch (err) {
-    res.status(400).json({ message: 'Could not save comment', errors: err.errors })
-  }
-})
-
-
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`)
-})
 
 // Sign in
 
-const User = mongoose.model('User', {
-  name: {
-    type: String,
-    required: true
-  },
-  password: {
-    type: String,
-    required: true
-  },
-  accessToken: {
-    type: String,
-    default: () => crypto.randomBytes(128).toString('hex')
-  }
-})
+
 app.post('/users', async(req, res) => {
   try {
     const { name, password } = req.body
@@ -150,4 +137,8 @@ app.post('/sessions', async(req, res) => {
 app.get('/users/current', authenticateUser)
 app.get('/users/current', (req, res) => {
   res.json(req.user)
+})
+
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`)
 })
