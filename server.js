@@ -9,7 +9,7 @@ import cloudinary from 'cloudinary'
 import multer from 'multer'
 import cloudinaryStorage from 'multer-storage-cloudinary'
 
-const mongoUrl = process.env.MONGO_URL || "mongodb://localhost/blog"
+const mongoUrl = process.env.MONGO_URL || "mongodb://localhost/Foodbabes"
 mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true })
 mongoose.Promise = Promise
 
