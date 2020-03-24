@@ -15,12 +15,30 @@ mongoose.Promise = Promise
 
 // Upload model
 const Food = mongoose.model('Food', {
-  title: String,
-  link: String,
-  imageUrl: String,
-  imageId: String,
-  description: String,
-  type: String
+  title: {
+    type: String,
+    required: true
+  },
+  link: {
+    type: String,
+    required: true
+  },
+  imageUrl: {
+    type: String,
+    required: true
+  },
+  imageId: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    maxlength: 250
+  },
+  type: {
+    type: String,
+    required: true
+  }
 })
 
 //Inlog model
